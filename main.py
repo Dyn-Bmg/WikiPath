@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import heapq
 from collections import deque
 
-def is_valid_article(link: str,seen) -> bool:
+def is_valid_link(link: str,seen: set) -> bool:
     
     EXCLUDED_PREFIXES = [
         "./Category:",
@@ -52,7 +52,7 @@ def is_valid_article(link: str,seen) -> bool:
 
 
 
-async def func(session,page,seen,sem):
+async def get_links(session,page,seen,sem) -> tuple[str, str]:
     url = 'https://en.wikipedia.org/w/rest.php/v1/page/' + page + '/html'
     
     headers = {
@@ -66,7 +66,7 @@ async def func(session,page,seen,sem):
                 table = soup.find_all('a', {'rel': "mw:WikiLink"})
                 links = [link.get('href') for link in table ]
                 links = list(set(links))
-                links = [link.replace('_', ' ').replace('./', '') for link in links if is_valid_article(link,seen)]
+                links = [link.replace('_', ' ').replace('./', '') for link in links if is_valid_link(link,seen)]
                 seen.update({link for link in links})
                 await asyncio.sleep(1)
                 page = page.replace('_', ' ').replace('./', '')
@@ -75,7 +75,7 @@ async def func(session,page,seen,sem):
         print(f"exception {e}")
         return []
 
-async def get_description(session,page,sem):
+async def get_description(session,page: str,sem) -> tuple[str,list[str]]:
     url = 'https://en.wikipedia.org/w/rest.php/v1/search/page'
     params = {
     'q': page,
@@ -101,7 +101,7 @@ async def get_description(session,page,sem):
         print(f"exception {e}")
         return None
 
-def checker(sentences,dic):
+def checker(sentences,dic) -> list[str]:
     model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only = True)
 
     embeddings = model.encode(sentences)
@@ -119,24 +119,23 @@ def checker(sentences,dic):
 async def main():
     sem = asyncio.Semaphore(5)
     texify = lambda t: t.replace(' ', '_')
-    begin = 'Matt Damon'
-    end = 'Spider-Man'
+    start_page = 'Matt Damon'
+    target_page = 'Spider-Man'
     async with aiohttp.ClientSession() as session:
-        ending = await get_description(session,end,sem)
-    seen = {begin,}
-    ans = [ending[1]]
-    queue = deque([begin])
+        target_description = await get_description(session,target_page,sem)
+    seen = {start_page,}
+    page_queue = deque([start_page])
     count = 0
-    l_count = 0
-    path_s = {begin:None}
+    link_counter = 0
+    path_s = {start_page:None}
 
-    while queue and count <= 6:
+    while page_queue and count <= 6:
         nodes = []
-        links_result = []
-        while queue:
-            node = queue.popleft()
-            if node == end:
-                queue.clear()
+        links_result = [] 
+        while page_queue:
+            node = page_queue.popleft()
+            if node == target_page:
+                page_queue.clear()
                 nodes.clear()
 
             else:
@@ -147,42 +146,42 @@ async def main():
         if nodes:
             async with aiohttp.ClientSession() as session:
                 async with asyncio.TaskGroup() as tg:
-                    p_links = [tg.create_task(func(session,node,seen,sem)) for node in nodes]
-                for result in p_links:
-                    page_info = result.result()
-                    page,links_list = page_info
+                    links_coroutine_list = [tg.create_task(get_links(session,node,seen,sem)) for node in nodes]
+                for link_coroutine in links_coroutine_list:
+                    links_info = link_coroutine.result()
+                    page_name,links_list = links_info
                     links_result.extend(links_list) 
-                    path_mini = {link:page for link in links_list}
+                    path_mini = {link:page_name for link in links_list}
                     path_s.update({k:v for k,v in path_mini.items() if k not in path_s})
                 async with asyncio.TaskGroup() as tg:
-                    results = [tg.create_task(get_description(session,link,sem)) for link in links_result]
-                for result in results:
-                    info = result.result()
-                    l_count += 1
-                    if info:
-                        page,descp = info
-                        hash_table[descp] = page
+                    decriptions_coroutine_list = [tg.create_task(get_description(session,link,sem)) for link in links_result]
+                for description_coroutine in decriptions_coroutine_list:
+                    description_info = description_coroutine.result()
+                    link_counter += 1
+                    if description_info:
+                        hash_table[description_info[1]] = description_info[0]
             
             if hash_table:
-                descriptions = ans + [desp for desp in hash_table]
+                descriptions = target_description[1] + [desp for desp in hash_table]
                 best = checker(descriptions,hash_table)
                 print (best)
-                queue= deque(best)
+                page_queue= deque(best)
                 count += 1
 
     
     if count < 7:
         print("FOUND!!!!!!")
-        down = end
-        path_link = []
+        down = target_page
+        path_list = []
         while down in path_s:
-            path_link.append(down)
+            path_list.append(down)
             down = path_s[down]
-        path_link.reverse()
-        print(path_link)
+        path_list.reverse()
+        print(path_list)
     else:
         print("NOT FOUND")
-    print(f"Process ended with {l_count} links inspected")
+
+    print(f"Process ended with {link_counter} links inspected")
 
 asyncio.run(main())
 
