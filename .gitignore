@@ -1,0 +1,11 @@
+.venv/
+WikiPath.venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+Thumbs.db
+.vscode/
+dist/
+build/
+.DS_Store
