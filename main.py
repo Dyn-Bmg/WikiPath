@@ -7,7 +7,16 @@ import heapq
 from collections import deque
 
 def is_valid_link(link: str,seen: set) -> bool:
-    
+    """
+    Determine whether a Wikipedia href is worth following.
+    Args:
+        link (str): Raw href string
+        seen (set): Set of visited page titles
+
+    Returns:
+        bool: True if the link should be followed, False otherwise
+    """
+    #
     EXCLUDED_PREFIXES = [
         "./Category:",
         "./Template:",
@@ -45,6 +54,7 @@ def is_valid_link(link: str,seen: set) -> bool:
     if not link or link.strip() == "":
         return False
     
+    #Normalise to the format used in 'seen'
     if link.replace('_', ' ').replace('./', '') in seen:
         return False
     
@@ -52,7 +62,21 @@ def is_valid_link(link: str,seen: set) -> bool:
 
 
 
-async def get_links(session,page,seen,sem) -> tuple[str, str]:
+async def get_links(session: aiohttp.ClientSession, page: str, seen: set, sem: asyncio.Semaphore) -> tuple[str, list[str]]:
+    """
+    Fetch all valid outgoing Wikipedia link titles from a given page.
+
+    Args:
+        session (aiohttp.ClientSession): An active "aiohttp.ClientSession"
+        page (str): The Wikipedia page title
+        seen (set): Set of visited page titles
+        sem (asyncio.Semaphore): Semaphore that caps concurrent outgoing HTTP requests
+
+    Returns:
+        tuple[str, list[str]]: Tuple of (page_title,list of valid links).
+        Return empty list on failure.
+    """
+    
     url = 'https://en.wikipedia.org/w/rest.php/v1/page/' + page + '/html'
     
     headers = {
@@ -75,7 +99,20 @@ async def get_links(session,page,seen,sem) -> tuple[str, str]:
         print(f"exception {e}")
         return []
 
-async def get_description(session,page: str,sem) -> tuple[str,list[str]]:
+async def get_description(session: aiohttp.ClientSession, page: str, sem: asyncio.Semaphore) -> tuple[str,str]:
+    """
+    Retrieve the short description of a Wikipedia page via the search API.
+
+    Args:
+        session (aiohttp.ClientSession): An active "aiohttp.ClientSession"
+        page (str): The wikipedia Page title
+        sem (asyncio.Semaphore): Semaphore that caps concurrent outgoing HTTP requests
+
+    Returns:
+        tuple[str,str]: A tuple (page_title, description),
+        with descritption in the format "page_title: short description".
+        Return None if no description or error.
+    """
     url = 'https://en.wikipedia.org/w/rest.php/v1/search/page'
     params = {
     'q': page,
@@ -101,7 +138,17 @@ async def get_description(session,page: str,sem) -> tuple[str,list[str]]:
         print(f"exception {e}")
         return None
 
-def checker(sentences,dic) -> list[str]:
+def ranker(sentences: list[str], dic: dict[str]) -> list[str]:
+    """
+    Rank candidate pages by semantic similarity to the target page.
+
+    Args:
+        sentences (list[str]): A list of page descriptions with the target page description at index 0
+        dic (dict[str]): A dictionary iwth key:value pair of description:page_title
+
+    Returns:
+        list[str]: list of 5 page titles most similar to the target in descending order.
+    """
     model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only = True)
 
     embeddings = model.encode(sentences)
@@ -117,6 +164,9 @@ def checker(sentences,dic) -> list[str]:
     return top5
 
 async def main():
+    """
+    Perform the path finding search.
+    """
     sem = asyncio.Semaphore(5)
     texify = lambda t: t.replace(' ', '_')
     start_page = 'Matt Damon'
@@ -162,8 +212,8 @@ async def main():
                         hash_table[description_info[1]] = description_info[0]
             
             if hash_table:
-                descriptions = target_description[1] + [desp for desp in hash_table]
-                best = checker(descriptions,hash_table)
+                descriptions = [target_description[1]] + [desp for desp in hash_table]
+                best = ranker(descriptions,hash_table)
                 print (best)
                 page_queue= deque(best)
                 count += 1
@@ -182,6 +232,7 @@ async def main():
         print("NOT FOUND")
 
     print(f"Process ended with {link_counter} links inspected")
+
 
 asyncio.run(main())
 
