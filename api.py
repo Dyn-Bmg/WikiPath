@@ -19,7 +19,7 @@ async def get_links(session: aiohttp.ClientSession, page: str, seen: set, sem: a
 
     Returns:
         tuple[str, list[str]]: Tuple of (page_title,list of valid links).
-        Return empty list on failure.
+        Return empty tuple on failure.
     """
     
     url = 'https://en.wikipedia.org/w/rest.php/v1/page/' + page + '/html'
@@ -42,7 +42,7 @@ async def get_links(session: aiohttp.ClientSession, page: str, seen: set, sem: a
                 return page,links
     except Exception as e:
         print(f"exception {e}")
-        return []
+        return ()
 
 async def get_description(session: aiohttp.ClientSession, page: str, sem: asyncio.Semaphore) -> tuple[str,str]:
     """
@@ -56,7 +56,7 @@ async def get_description(session: aiohttp.ClientSession, page: str, sem: asynci
     Returns:
         tuple[str,str]: A tuple (page_title, description),
         with descritption in the format "page_title: short description".
-        Return None if no description or error.
+        Return empty Tuple if no description or error.
     """
     url = 'https://en.wikipedia.org/w/rest.php/v1/search/page'
     params = {
@@ -81,4 +81,4 @@ async def get_description(session: aiohttp.ClientSession, page: str, sem: asynci
                     return ()
     except Exception as e:
         print(f"exception {e}")
-        return None
+        return ()
