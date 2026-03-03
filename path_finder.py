@@ -7,6 +7,7 @@ import asyncio
 import api 
 from collections import deque
 import semantic_ranker 
+from sentence_transformers import SentenceTransformer
 
 
 
@@ -72,7 +73,8 @@ async def finder(start_page: str, target_page: str) -> tuple[bool,list[str],int]
             
             if hash_table:
                 descriptions = [target_description[1]] + [desp for desp in hash_table]
-                best = semantic_ranker.ranker(descriptions,hash_table)
+                model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only = True)
+                best = semantic_ranker.ranker(model,descriptions,hash_table)
                 print (best)
                 page_queue= deque(best)
                 count += 1

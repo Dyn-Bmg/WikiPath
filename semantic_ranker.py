@@ -9,18 +9,18 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import heapq
 
-def ranker(sentences: list[str], dic: dict[str]) -> list[str]:
+def ranker(model: SentenceTransformer, sentences: list[str], dic: dict[str]) -> list[str]:
     """
     Rank candidate pages by semantic similarity to the target page.
 
     Args:
+        model (SentenceTransformer): SentanceTransformer module to generate embeddings
         sentences (list[str]): A list of page descriptions with the target page description at index 0
         dic (dict[str]): A dictionary iwth key:value pair of description:page_title
 
     Returns:
         list[str]: list of 5 page titles most similar to the target in descending order.
     """
-    model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only = True)
 
     embeddings = model.encode(sentences)
     ranking = {}
