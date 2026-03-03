@@ -70,15 +70,15 @@ async def get_description(session: aiohttp.ClientSession, page: str, sem: asynci
         async with sem:
             async with session.get(url, headers=headers, params = params) as response:
                 data = await response.json()
-                if not data['pages']:
-                    return None
-                wiki_description = data["pages"][0].get("description")
-                if wiki_description:
-                    wiki_description = page + ": " + wiki_description
-                    await asyncio.sleep(0.5)
-                    return (page,wiki_description)
+                pages = data.get("pages",[])
+                if pages:
+                    wiki_description = pages[0].get("description")
+                    if wiki_description:
+                        wiki_description = page + ": " + wiki_description
+                        await asyncio.sleep(0.5)
+                        return (page,wiki_description)
                 else:
-                    return None
+                    return ()
     except Exception as e:
         print(f"exception {e}")
         return None
