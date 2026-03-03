@@ -35,7 +35,8 @@ async def finder(start_page: str, target_page: str) -> tuple[bool,list[str],int]
 
     while page_queue and count <= 6:
         nodes = []
-        links_result = [] 
+        links_result = []
+        description_dict = {} 
         while page_queue:
             node = page_queue.popleft()
             if node == target_page: #Target page found
@@ -51,7 +52,6 @@ async def finder(start_page: str, target_page: str) -> tuple[bool,list[str],int]
             else:
                 node = texify(node)
                 nodes.append(node)
-                hash_table = {}
 
         if nodes:
             async with aiohttp.ClientSession() as session:
@@ -69,12 +69,12 @@ async def finder(start_page: str, target_page: str) -> tuple[bool,list[str],int]
                     description_info = description_coroutine.result()
                     link_counter += 1
                     if description_info:
-                        hash_table[description_info[1]] = description_info[0]
+                        description_dict[description_info[1]] = description_info[0]
             
-            if hash_table:
-                descriptions = [target_description[1]] + [desp for desp in hash_table]
+            if description_dict:
+                descriptions = [target_description[1]] + [desp for desp in description_dict]
                 model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only = True)
-                best = semantic_ranker.ranker(model,descriptions,hash_table)
+                best = semantic_ranker.ranker(model,descriptions,description_dict)
                 print (best)
                 page_queue= deque(best)
                 count += 1
